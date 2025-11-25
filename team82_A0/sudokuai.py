@@ -26,6 +26,18 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
                    and not TabooMove((i, j), value) in game_state.taboo_moves \
                        and (i, j) in game_state.player_squares()
         
+        def evaluate_board():
+            # Simple evaluation function counting score difference
+            score = 0
+            for i in range(N):
+                for j in range(N):
+                    cell_value = game_state.board.get((i, j))
+                    if cell_value != SudokuBoard.empty:
+                        if (i, j) in game_state.occupied_squares1():
+                            score += 1
+                        else:
+                            score -= 1
+            return score
         
         def sudoku_rules_satisfied(i,j,value):
 
