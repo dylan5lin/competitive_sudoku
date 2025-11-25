@@ -25,9 +25,40 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
             return game_state.board.get((i, j)) == SudokuBoard.empty \
                    and not TabooMove((i, j), value) in game_state.taboo_moves \
                        and (i, j) in game_state.player_squares()
+        
+        
+        def sudoku_rules_satisfied(i,j,value):
 
-        all_moves = [Move((i, j), value) for i in range(N) for j in range(N)
-                     for value in range(1, N+1) if possible(i, j, value)]
+            # check row
+            for col in range(N):
+                if game_state.board.get((i, col)) == value:
+                    return False
+            #check column
+            for row in range(N):
+                if game_state.board.get((row, j)) == value:
+                    return False
+            # check block
+            m  = game_state.board.region_height()
+            n = game_state.board.region_width()
+            block_row_start = (i // m) * m
+            block_col_start = (j // n) * n
+            for row in range(block_row_start, block_row_start + m):
+                for col in range(block_col_start, block_col_start + n):
+                    if game_state.board.get((row, col)) == value:
+                        return False
+            return True
+
+        def generate_all_moves():
+            moves = []
+            for i in range(N):
+                for j in range(N):
+                    for value in range(1, N+1):
+                        if possible(i, j, value) and sudoku_rules_satisfied(i,j,value):
+                            moves.append(Move((i, j), value))
+            return moves
+
+        all_moves = generate_all_moves()
+
         move = random.choice(all_moves)
         self.propose_move(move)
         while True:
