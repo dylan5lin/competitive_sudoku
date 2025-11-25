@@ -26,8 +26,8 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
                    and not TabooMove((i, j), value) in game_state.taboo_moves \
                        and (i, j) in game_state.player_squares()
         
-        def evaluate_board():
-            # Simple evaluation function counting score difference
+        def evaluate_board_1():
+            # Simple evaluation function counting score difference, assuming we are player 1
             score = 0
             for i in range(N):
                 for j in range(N):
@@ -37,6 +37,21 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
                             score += 1
                         else:
                             score -= 1
+            score = (score + game_state.scores[0]) * 5
+            return score
+        
+        def evaluate_board_2():
+            # Simple evaluation function counting score difference, for player 2
+            score = 0
+            for i in range(N):
+                for j in range(N):
+                    cell_value = game_state.board.get((i, j))
+                    if cell_value != SudokuBoard.empty:
+                        if (i, j) in game_state.occupied_squares2():
+                            score += 1
+                        else:
+                            score -= 1
+            score = (score + game_state.scores[1]) * 5
             return score
         
         def sudoku_rules_satisfied(i,j,value):
@@ -71,9 +86,33 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
 
         all_moves = generate_all_moves()
 
+        def alpha_beta_pruning(node, depth, alpha, beta, is_maximizing):
+            if depth == 0 or all_moves == []:
+                return evaluate_board_1()
+            if is_maximizing:
+                max_eval = float('-inf')
+                all_moves = generate_all_moves()
+                for move in all_moves:
+                    eval = alpha_beta_pruning(move, depth - 1, alpha, beta, False)
+                    max_eval = max(max_eval, eval)
+                    alpha = max(alpha, eval)
+                    if beta <= alpha:
+                        break
+                return max_eval
+            else:
+                min_eval = float('inf')
+                all_moves = generate_all_moves()
+                for move in all_moves:
+                    eval = alpha_beta_pruning(move, depth - 1, alpha, beta, False)
+                    min_eval = min(min_eval, eval)
+                    beta = min(alpha, eval)
+                    if beta <= alpha:
+                        break
+                return min_eval
+
         move = random.choice(all_moves)
         self.propose_move(move)
         while True:
-            time.sleep(0.2)
+            time.sleep(0.2) #?
             self.propose_move(random.choice(all_moves))
 
