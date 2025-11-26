@@ -6,6 +6,7 @@ import random
 import time
 from competitive_sudoku.sudoku import GameState, Move, SudokuBoard, TabooMove
 import competitive_sudoku.sudokuai
+from copy import deepcopy
 
 
 class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
@@ -21,98 +22,113 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
         N = game_state.board.N
 
         # Check whether a cell is empty, a value in that cell is not taboo, and that cell is allowed
-        def possible(i, j, value):
-            return game_state.board.get((i, j)) == SudokuBoard.empty \
-                   and not TabooMove((i, j), value) in game_state.taboo_moves \
-                       and (i, j) in game_state.player_squares()
+        def possible(state, i, j, value):
+            return state.board.get((i, j)) == SudokuBoard.empty \
+                   and not TabooMove((i, j), value) in state.taboo_moves \
+                       and (i, j) in state.player_squares()
         
-        def evaluate_board_1():
+        def evaluate_board_1(state:GameState):
             # Simple evaluation function counting score difference, assuming we are player 1
             score = 0
             for i in range(N):
                 for j in range(N):
-                    cell_value = game_state.board.get((i, j))
+                    cell_value = state.board.get((i, j))
                     if cell_value != SudokuBoard.empty:
-                        if (i, j) in game_state.occupied_squares1():
+                        if (i, j) in state.occupied_squares1:
                             score += 1
                         else:
                             score -= 1
-            score = (score + game_state.scores[0]) * 5
+            score = (score + state.scores[0]) * 5
             return score
         
-        def evaluate_board_2():
+        def evaluate_board_2(state:GameState):
             # Simple evaluation function counting score difference, for player 2
             score = 0
             for i in range(N):
                 for j in range(N):
-                    cell_value = game_state.board.get((i, j))
+                    cell_value = state.board.get((i, j))
                     if cell_value != SudokuBoard.empty:
-                        if (i, j) in game_state.occupied_squares2():
+                        if (i, j) in state.occupied_squares2:
                             score += 1
                         else:
                             score -= 1
-            score = (score + game_state.scores[1]) * 5
+            score = (score + state.scores[1]) * 5
             return score
         
-        def sudoku_rules_satisfied(i,j,value):
+        def sudoku_rules_satisfied(state, i,j,value):
 
             # check row
             for col in range(N):
-                if game_state.board.get((i, col)) == value:
+                if state.board.get((i, col)) == value:
                     return False
             #check column
             for row in range(N):
-                if game_state.board.get((row, j)) == value:
+                if state.board.get((row, j)) == value:
                     return False
             # check block
-            m  = game_state.board.region_height()
-            n = game_state.board.region_width()
+            m  = state.board.region_height()
+            n = state.board.region_width()
             block_row_start = (i // m) * m
             block_col_start = (j // n) * n
             for row in range(block_row_start, block_row_start + m):
                 for col in range(block_col_start, block_col_start + n):
-                    if game_state.board.get((row, col)) == value:
+                    if state.board.get((row, col)) == value:
                         return False
             return True
 
-        def generate_all_moves():
+        def generate_all_moves(state:GameState):
             moves = []
             for i in range(N):
                 for j in range(N):
                     for value in range(1, N+1):
-                        if possible(i, j, value) and sudoku_rules_satisfied(i,j,value):
+                        if possible(state, i, j, value) and sudoku_rules_satisfied(state, i,j,value):
                             moves.append(Move((i, j), value))
             return moves
 
-        all_moves = generate_all_moves()
 
-        def alpha_beta_pruning(node, depth, alpha, beta, is_maximizing):
-            if depth == 0 or all_moves == []:
-                return evaluate_board_1()
+        def alpha_beta_pruning(state:GameState, depth, alpha, beta, is_maximizing):
+            if depth == 0:
+                return evaluate_board_1(state), None
+            moves = generate_all_moves(state)
+            if moves == []:
+                return evaluate_board_1(state), None
             if is_maximizing:
                 max_eval = float('-inf')
-                all_moves = generate_all_moves()
-                for move in all_moves:
-                    eval = alpha_beta_pruning(move, depth - 1, alpha, beta, False)
-                    max_eval = max(max_eval, eval)
+                for move in moves:
+                    child = deepcopy(state)
+                    child.board.put(move.square, move.value)
+                    eval, _ = alpha_beta_pruning(child, depth - 1, alpha, beta, False)
+                    if eval > max_eval:
+                        max_eval = eval
+                        best_move = move
                     alpha = max(alpha, eval)
                     if beta <= alpha:
                         break
-                return max_eval
+                return max_eval, best_move
             else:
                 min_eval = float('inf')
-                all_moves = generate_all_moves()
-                for move in all_moves:
-                    eval = alpha_beta_pruning(move, depth - 1, alpha, beta, False)
-                    min_eval = min(min_eval, eval)
-                    beta = min(alpha, eval)
+                for move in moves:
+                    child = deepcopy(state)
+                    child.board.put(move.square, move.value)
+                    eval, _ = alpha_beta_pruning(child, depth - 1, alpha, beta, True)
+                    if eval < min_eval:
+                        min_eval = eval
+                        best_move = move
+                    beta = min(beta, eval)
                     if beta <= alpha:
                         break
-                return min_eval
-
-        move = random.choice(all_moves)
-        self.propose_move(move)
+                return min_eval, best_move
+        init_alpha = float('-inf')
+        init_beta = float('inf')
+        _, best_move = alpha_beta_pruning(game_state, 3, init_alpha, init_beta, True)
+        if best_move is None:
+            all_moves = generate_all_moves(game_state)
+            self.propose_move(random.choice(all_moves))
+        else:           
+            self.propose_move(best_move)
+        """
         while True:
             time.sleep(0.2) #?
             self.propose_move(random.choice(all_moves))
+        """
 
