@@ -80,6 +80,8 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
                 for move in moves:
                     child = deepcopy(state)
                     child.board.put(move.square, move.value)
+                    child.current_player = 2 if state.current_player == 1 else 1
+
                     eval, _ = alpha_beta_pruning(child, depth - 1, alpha, beta, False)
                     if eval > max_eval:
                         max_eval = eval
@@ -87,13 +89,15 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
                     alpha = max(alpha, eval)
                     if beta <= alpha:
                         break
-                print("Max eval:", max_eval)
+                
                 return max_eval, best_move
             else:
                 min_eval = float('inf')
                 for move in moves:
                     child = deepcopy(state)
                     child.board.put(move.square, move.value)
+                    child.current_player = 2 if state.current_player == 1 else 1
+
                     eval, _ = alpha_beta_pruning(child, depth - 1, alpha, beta, True)
                     if eval < min_eval:
                         min_eval = eval
@@ -101,7 +105,6 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
                     beta = min(beta, eval)
                     if beta <= alpha:
                         break
-                print("Min eval:", min_eval)
                 return min_eval, best_move
         init_alpha = float('-inf')
         init_beta = float('inf')
