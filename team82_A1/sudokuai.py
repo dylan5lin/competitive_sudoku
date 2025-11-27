@@ -37,6 +37,79 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
             weights = [5, 1]
             score = sum(f * w for f, w in zip(features, weights))
             return score
+        def evaluate_board_1(state:GameState):
+            # Simple evaluation function counting score difference, assuming we are player 1
+            score = 0
+            for i in range(N):
+                for j in range(N):
+                    cell_value = state.board.get((i, j))
+                    if cell_value != SudokuBoard.empty:
+                        if (i, j) in state.occupied_squares1:
+                            score += 1
+                        else:
+                            score -= 1
+            score = (score + state.scores[0]) * 5
+            return score
+
+
+        def evaluate_board_2(state:GameState):
+            curr_player = state.current_player # index current player
+            opp_player =  3- curr_player
+            score_diff = state.scores[0] - state.scores[1]
+            potential_next = chances_to_complete_next(state, 1) - chances_to_complete_next(state, 2)
+            total_score = score_diff * 3 + potential_next * 10
+            return total_score
+        
+        def chances_to_complete_next(state:GameState,curr_player):
+            original = state.current_player
+            state.current_player = curr_player 
+            moves = generate_all_moves(state)
+            legal_squares = {move.square for move in moves}
+            N = state.board.N
+            m, n = state.board.region_height(), state.board.region_width()
+            chances = 0
+            """
+            for i in range(N):
+                empty_row = []
+                empty_col = []
+                for j in range(N):
+                    if state.board.get((i, j)) == SudokuBoard.empty:
+                        empty_row.append((i, j))
+                    if state.board.get((j, i)) == SudokuBoard.empty:
+                        empty_col.append((j, i))
+                if len(empty_row) == 1 and empty_row[0] in legal_squares:
+                    chances += 1
+                if len(empty_col) == 1 and empty_col[0] in legal_squares:
+                    chances += 1
+            
+            # Check rows
+            for i in range(N):
+                empties = [(i, j) for j in range(N)
+                        if state.board.get((i, j)) == SudokuBoard.empty]
+                if len(empties) == 1 and empties[0] in legal_squares:
+                    chances += 1
+
+            # Check columns
+            for j in range(N):
+                empties = [(i, j) for i in range(N)
+                        if state.board.get((i, j)) == SudokuBoard.empty]
+                if len(empties) == 1 and empties[0] in legal_squares:
+                    chances += 1
+            """
+            # Check blocks
+            for br in range(0, N, m):
+                for bc in range(0, N, n):
+                    empties = []
+                    for i in range(br, br + m):
+                        for j in range(bc, bc + n):
+                            if state.board.get((i, j)) == SudokuBoard.empty:
+                                empties.append((i, j))
+                    if len(empties) == 1 and empties[0] in legal_squares:
+                        chances += 1
+
+            # Restore
+            state.current_player = original
+            return chances
         
         def sudoku_rules_satisfied(state, i,j,value):
 
@@ -71,10 +144,10 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
 
         def alpha_beta_pruning(state:GameState, depth, alpha, beta, is_maximizing):
             if depth == 0:
-                return evaluate_state(state), None
+                return evaluate_board_2(state), None
             moves = generate_all_moves(state)
             if moves == []:
-                return evaluate_state(state), None
+                return evaluate_board_2(state), None
             if is_maximizing:
                 max_eval = float('-inf')
                 for move in moves:
