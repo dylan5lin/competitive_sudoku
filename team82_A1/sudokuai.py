@@ -63,12 +63,12 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
         def chances_to_complete_next(state:GameState,curr_player):
             original = state.current_player
             state.current_player = curr_player 
-            moves = generate_all_moves(state)
-            legal_squares = {move.square for move in moves}
+            #moves = generate_all_moves(state)
+            legal_squares = state.player_squares()
+            #legal_squares = {move.square for move in moves}
             N = state.board.N
             m, n = state.board.region_height(), state.board.region_width()
             chances = 0
-            """
             for i in range(N):
                 empty_row = []
                 empty_col = []
@@ -95,7 +95,6 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
                         if state.board.get((i, j)) == SudokuBoard.empty]
                 if len(empties) == 1 and empties[0] in legal_squares:
                     chances += 1
-            """
             # Check blocks
             for br in range(0, N, m):
                 for bc in range(0, N, n):
@@ -181,7 +180,7 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
                 return min_eval, best_move
         init_alpha = float('-inf')
         init_beta = float('inf')
-        _, best_move = alpha_beta_pruning(game_state, 3, init_alpha, init_beta, True)
+        _, best_move = alpha_beta_pruning(game_state, 2, init_alpha, init_beta, True)
         if best_move is None:
             all_moves = generate_all_moves(game_state)
             self.propose_move(random.choice(all_moves))
