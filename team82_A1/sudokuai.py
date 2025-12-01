@@ -20,38 +20,77 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
     # N.B. This is a very naive implementation.
     def compute_best_move(self, game_state: GameState) -> None:
         N = game_state.board.N
-
+        our_player = game_state.current_player
         # Check whether a cell is empty, a value in that cell is not taboo, and that cell is allowed
         def possible(state, i, j, value):
             return state.board.get((i, j)) == SudokuBoard.empty \
                    and not TabooMove((i, j), value) in state.taboo_moves \
                        and (i, j) in state.player_squares()
         def evaluate_state(state:GameState):
+            player = our_player
+            opponent = 3 - player
+            board = state.board
+            N = board.N
             # Score difference
-            score_diff = state.scores[0] - state.scores[1]
-            # Filled squares difference
-            squares_diff = len(state.occupied_squares1) - len(state.occupied_squares2)
+            score_diff = state.scores[player - 1] - state.scores[opponent - 1]
+            # Chances to complete next difference
+            player_chances = chances_to_complete_next(state, player)
+            opponent_chances = chances_to_complete_next(state, opponent)
+            chance_diff = player_chances - opponent_chances
+            # Regions completed difference
+            m = state.board.region_height()
+            n = state.board.region_width()
+            for br in range(0, N, m):
+                for bc in range(0, N, n):
+                    player_regions = 0
+                    opponent_regions = 0
+                    empty = 0
+                    for r in range(br, br + m):
+                        for c in range(bc, bc + n):
+                            cell_value = state.board.get((r, c))
+                            if cell_value == SudokuBoard.empty:
+                                empty += 1
+                            elif (r, c) in state.occupied_squares1:
+                                player_regions += 1
+                            elif (r, c) in state.occupied_squares2:
+                                opponent_regions += 1
+            center_control_diff = center_control(state, WEIGHTS, player)
             # Features
-            features = [score_diff, squares_diff]
+            features = [score_diff, chance_diff, center_control_diff]
             # Weights for features
-            weights = [5, 1]
+            weights = [5, 10, 30]
             score = sum(f * w for f, w in zip(features, weights))
             return score
-        def evaluate_board_1(state:GameState):
-            # Simple evaluation function counting score difference, assuming we are player 1
-            score = 0
-            for i in range(N):
-                for j in range(N):
-                    cell_value = state.board.get((i, j))
-                    if cell_value != SudokuBoard.empty:
-                        if (i, j) in state.occupied_squares1:
-                            score += 1
-                        else:
-                            score -= 1
-            score = (score + state.scores[0]) * 5
-            return score
+        def center_weights(board: SudokuBoard):
+            N = board.N
+            center = (N-1)/2
+            center_squares = (center, center)
+            max_dist = (abs(0 - center_squares[0]) + abs(0 - center_squares[1]))
+            weights = {}
+            for row in range(N):
+                for col in range(N):
+                    dist = abs(row - center_squares[0]) + abs(col - center_squares[1])
+                    weights[(row, col)] = max_dist - dist
+            return weights
+        
+        WEIGHTS = center_weights(game_state.board)
 
-
+        def center_control(state:GameState, weights, player):
+            board = state.board
+            N = board.N
+            opponent = 3 - player
+            player_score = 0
+            opponent_score = 0
+            player_squares = state.occupied_squares1 if player == 1 else state.occupied_squares2
+            opponent_squares = state.occupied_squares2 if opponent == 2 else state.occupied_squares1
+            for (row,col), weight in weights.items():
+                value = board.get((row, col))
+                if value != SudokuBoard.empty:
+                    if (row, col) in player_squares:
+                        player_score += weight
+                    elif (row, col) in opponent_squares:
+                        opponent_score += weight
+            return player_score - opponent_score
         def evaluate_board_2(state:GameState):
             curr_player = state.current_player # index current player
             opp_player =  3- curr_player
@@ -63,36 +102,29 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
         def chances_to_complete_next(state:GameState,curr_player):
             original = state.current_player
             state.current_player = curr_player 
+            board = state.board
             #moves = generate_all_moves(state)
             legal_squares = state.player_squares()
             #legal_squares = {move.square for move in moves}
-            N = state.board.N
-            m, n = state.board.region_height(), state.board.region_width()
+            N = board.N
+            m, n = board.region_height(), board.region_width()
+            if legal_squares is None:
+                legal_squares = [(i,j) for i in range(N) for j in range(N)
+                                 if board.get((i,j)) == SudokuBoard.empty]
+            legal_squares = set(legal_squares)
             chances = 0
-            for i in range(N):
-                empty_row = []
-                empty_col = []
-                for j in range(N):
-                    if state.board.get((i, j)) == SudokuBoard.empty:
-                        empty_row.append((i, j))
-                    if state.board.get((j, i)) == SudokuBoard.empty:
-                        empty_col.append((j, i))
-                if len(empty_row) == 1 and empty_row[0] in legal_squares:
-                    chances += 1
-                if len(empty_col) == 1 and empty_col[0] in legal_squares:
-                    chances += 1
             
             # Check rows
             for i in range(N):
                 empties = [(i, j) for j in range(N)
-                        if state.board.get((i, j)) == SudokuBoard.empty]
+                        if board.get((i, j)) == SudokuBoard.empty]
                 if len(empties) == 1 and empties[0] in legal_squares:
                     chances += 1
 
             # Check columns
             for j in range(N):
                 empties = [(i, j) for i in range(N)
-                        if state.board.get((i, j)) == SudokuBoard.empty]
+                        if board.get((i, j)) == SudokuBoard.empty]
                 if len(empties) == 1 and empties[0] in legal_squares:
                     chances += 1
             # Check blocks
@@ -101,7 +133,7 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
                     empties = []
                     for i in range(br, br + m):
                         for j in range(bc, bc + n):
-                            if state.board.get((i, j)) == SudokuBoard.empty:
+                            if board.get((i, j)) == SudokuBoard.empty:
                                 empties.append((i, j))
                     if len(empties) == 1 and empties[0] in legal_squares:
                         chances += 1
@@ -111,23 +143,23 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
             return chances
         
         def sudoku_rules_satisfied(state, i,j,value):
-
+            board = state.board
             # check row
             for col in range(N):
-                if state.board.get((i, col)) == value:
+                if board.get((i, col)) == value:
                     return False
             #check column
             for row in range(N):
-                if state.board.get((row, j)) == value:
+                if board.get((row, j)) == value:
                     return False
             # check block
-            m  = state.board.region_height()
-            n = state.board.region_width()
+            m  = board.region_height()
+            n = board.region_width()
             block_row_start = (i // m) * m
             block_col_start = (j // n) * n
             for row in range(block_row_start, block_row_start + m):
                 for col in range(block_col_start, block_col_start + n):
-                    if state.board.get((row, col)) == value:
+                    if board.get((row, col)) == value:
                         return False
             return True
 
@@ -138,22 +170,23 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
                     for value in range(1, N+1):
                         if possible(state, i, j, value) and sudoku_rules_satisfied(state, i,j,value):
                             moves.append(Move((i, j), value))
+            moves.sort(key=lambda move: WEIGHTS[move.square], reverse=True)
             return moves
 
 
         def alpha_beta_pruning(state:GameState, depth, alpha, beta, is_maximizing):
-            if depth == 0:
-                return evaluate_board_2(state), None
             moves = generate_all_moves(state)
-            if moves == []:
-                return evaluate_board_2(state), None
+            # Terminate search if no moves are available or depth = 0
+            if moves == [] or depth == 0:
+                return evaluate_state(state), None
+            
+            # Maximizing player
             if is_maximizing:
                 max_eval = float('-inf')
                 for move in moves:
                     child = deepcopy(state)
                     child.board.put(move.square, move.value)
                     child.current_player = 2 if state.current_player == 1 else 1
-
                     eval, _ = alpha_beta_pruning(child, depth - 1, alpha, beta, False)
                     if eval > max_eval:
                         max_eval = eval
@@ -163,13 +196,14 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
                         break
                 
                 return max_eval, best_move
+            
+            # Minimizing player
             else:
                 min_eval = float('inf')
                 for move in moves:
                     child = deepcopy(state)
                     child.board.put(move.square, move.value)
                     child.current_player = 2 if state.current_player == 1 else 1
-
                     eval, _ = alpha_beta_pruning(child, depth - 1, alpha, beta, True)
                     if eval < min_eval:
                         min_eval = eval
@@ -178,13 +212,27 @@ class SudokuAI(competitive_sudoku.sudokuai.SudokuAI):
                     if beta <= alpha:
                         break
                 return min_eval, best_move
-        init_alpha = float('-inf')
-        init_beta = float('inf')
-        _, best_move = alpha_beta_pruning(game_state, 2, init_alpha, init_beta, True)
-        if best_move is None:
-            all_moves = generate_all_moves(game_state)
-            self.propose_move(random.choice(all_moves))
-        else:           
+        
+        def iterative_deepening_search(state:GameState, max_depth=5):
+            init_alpha = float('-inf')
+            init_beta = float('inf')
+            current_best = None
+            for depth in range(1, max_depth + 1):
+                _, best_move = alpha_beta_pruning(state, depth, init_alpha, init_beta, True)
+                if best_move is not None:
+                    current_best = best_move
+                    try:
+                        self.propose_move(best_move)
+                    except:
+                        pass
+            return current_best
+                
+        # Initial settings for iterative deepening
+        MAX_DEPTH = 8
+        all_moves = generate_all_moves(game_state)
+        self.propose_move(random.choice(all_moves[:10]))
+        best_move = iterative_deepening_search(game_state, MAX_DEPTH)
+        if best_move is not None:
             self.propose_move(best_move)
         """
         while True:
